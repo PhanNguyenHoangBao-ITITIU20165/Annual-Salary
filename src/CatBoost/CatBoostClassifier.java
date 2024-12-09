@@ -1,130 +1,58 @@
 package src.CatBoost;
 
-import ai.catboost.CatBoostClassifier;
 import ai.catboost.CatBoostError;
 import ai.catboost.CatBoostModel;
 import ai.catboost.CatBoostPredictions;
-import ai.catboost.Pool;
-import weka.core.Instances;
-import weka.core.converters.CSVSaver;
-import weka.core.converters.ConverterUtils.DataSource;
 
-import java.io.File;
-import java.util.HashMap;
-import java.util.Map;
+import java.io.BufferedReader;
+import java.io.FileReader;
+import java.io.IOException;
 
 public class CatBoostClassifier {
 
-    public static void main(String[] args) {
+    public static void CatBoost() {
         try {
-            // Load Weka datasets
-            Instances trainData = loadDataset("data/Train_Dataset.arff");
-            Instances testData = loadDataset("data/Test_Dataset.arff");
+            // Load the pre-trained CatBoost model
+            CatBoostModel model = CatBoostModel.loadModel("data/model.cbm");
 
-            // Export Weka Instances to CSV
-            saveInstancesToCSV(trainData, "data/Train_Dataset.csv");
-            saveInstancesToCSV(testData, "data/Test_Dataset.csv");
+            // Open the dataset file
+            BufferedReader reader = new BufferedReader(new FileReader("data/Test_Dataset.csv"));
+            String line;
 
-            // Load data into CatBoost Pools
-            Pool trainPool = Pool.load("data/Train_Dataset.csv", null);
-            Pool testPool = Pool.load("data/Test_Dataset.csv", null);
+            // Skip the header row
+            reader.readLine();
 
-            // Set CatBoost parameters
-            Map<String, Object> params = new HashMap<>();
-            params.put("iterations", 1000);
-            params.put("learning_rate", 0.1);
-            params.put("loss_function", "MultiClass");
-            params.put("eval_metric", "Accuracy");
-            params.put("random_seed", 42);
+            while ((line = reader.readLine()) != null) {
+                // Split the line into features (based on CSV format)
+                String[] row = line.split(",");
 
-            // Initialize and train the model
-            CatBoostClassifier model = new CatBoostClassifier(params);
-            model.fit(trainPool, null);
+                // Extract numerical features (e.g., Years of Experience, Age)
+                float[] numericalFeatures = new float[]{
+                        Float.parseFloat(row[0]), // Years of Experience
+                        Float.parseFloat(row[2])  // Age
+                };
 
-            // Make predictions
-            CatBoostPredictions predictions = model.predict(testPool);
+                // Extract categorical features (e.g., Education Level)
+                String[] categoricalFeatures = new String[]{row[1]}; // Education Level
 
-            // Evaluate the model
-            evaluateModel(predictions, testPool);
+                // Make a prediction on the current feature vector
+                CatBoostPredictions predictions = model.predict(numericalFeatures, categoricalFeatures);
 
-            // Save the model
-            model.saveModel("data/CatBoostModel.cbm", "CatBoost model", null);
+                // Extract and print prediction results
+                System.out.println("Prediction: " + predictions);
+            }
 
-        } catch (Exception e) {
+            reader.close();
+
+        } catch (CatBoostError e) {
+            System.err.println("Error during prediction: " + e.getMessage());
+            e.printStackTrace();
+        } catch (IOException e) {
+            System.err.println("Error reading the file: " + e.getMessage());
+            e.printStackTrace();
+        } catch (NumberFormatException e) {
+            System.err.println("Error parsing numerical features: " + e.getMessage());
             e.printStackTrace();
         }
     }
-
-    // Load a dataset from an ARFF file
-    private static Instances loadDataset(String filePath) throws Exception {
-        DataSource dataSource = new DataSource(filePath);
-        Instances data = dataSource.getDataSet();
-        // Set class index
-        if (data.classIndex() == -1) {
-            data.setClassIndex(data.numAttributes() - 1);
-        }
-        return data;
-    }
-
-    // Save Weka Instances to CSV
-    private static void saveInstancesToCSV(Instances data, String filePath) throws Exception {
-        CSVSaver saver = new CSVSaver();
-        saver.setInstances(data);
-        saver.setFile(new File(filePath));
-        saver.writeBatch();
-    }
-
-    // Evaluate the model
-    private static void evaluateModel(CatBoostPredictions predictions, Pool testPool) throws CatBoostError {
-        double[][] predictionArray = predictions.getRawValues();
-        double[] actualLabels = testPool.getLabel();
-
-        int numInstances = predictionArray.length;
-        int[] predictedLabels = new int[numInstances];
-
-        for (int i = 0; i < numInstances; i++) {
-            // Find the class with the highest probability
-            double[] classProbs = predictionArray[i];
-            int predictedClass = 0;
-            double maxProb = classProbs[0];
-            for (int j = 1; j < classProbs.length; j++) {
-                if (classProbs[j] > maxProb) {
-                    maxProb = classProbs[j];
-                    predictedClass = j;
-                }
-            }
-            predictedLabels[i] = predictedClass;
-        }
-
-        // Compute accuracy
-        int correct = 0;
-        for (int i = 0; i < numInstances; i++) {
-            if (predictedLabels[i] == (int) actualLabels[i]) {
-                correct++;
-            }
-        }
-
-        double accuracy = (double) correct / numInstances;
-        System.out.println("Accuracy: " + (accuracy * 100) + "%");
-
-        // Compute confusion matrix
-        int numClasses = predictionArray[0].length;
-        int[][] confusionMatrix = new int[numClasses][numClasses];
-
-        for (int i = 0; i < numInstances; i++) {
-            int actual = (int) actualLabels[i];
-            int predicted = predictedLabels[i];
-            confusionMatrix[actual][predicted]++;
-        }
-
-        // Print confusion matrix
-        System.out.println("Confusion Matrix:");
-        for (int i = 0; i < numClasses; i++) {
-            for (int j = 0; j < numClasses; j++) {
-                System.out.print(confusionMatrix[i][j] + "\t");
-            }
-            System.out.println();
-        }
-    }
 }
-

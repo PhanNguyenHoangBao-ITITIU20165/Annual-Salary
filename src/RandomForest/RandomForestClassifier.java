@@ -18,7 +18,7 @@ import java.io.File;
 
 public class RandomForestClassifier {
 
-    public static void main(String[] args) {
+    public static void RandomForest() {
         try {
             CategorizeSalary.Salary_Categorical("data/Combined_Dataset.arff");
             DatasetSplitter.splitData("data/modified_dataset.arff");

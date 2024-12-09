@@ -1,0 +1,2 @@
+*.csv filter=lfs diff=lfs merge=lfs -text
+D:/Annual-Salary/data/Stackoverflow_Dev/Stackoverflow_Developer_Survey_2023.csv filter=lfs diff=lfs merge=lfs -text
